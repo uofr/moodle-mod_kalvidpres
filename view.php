@@ -69,12 +69,12 @@ if (has_capability('moodle/course:manageactivities', $context)) {
 }
 
 // Try connection
-$result = login(true, '');
+$result = local_kaltura_login(true, '');
 
 if ($result) {
-//    if (has_mobile_flavor_enabled() && get_enable_html5()) {
-//        $uiconf_id = get_player_uiconf('presentation');
-//        $url = new moodle_url(htm5_javascript_url($uiconf_id));
+//    if (local_kaltura_has_mobile_flavor_enabled() && local_kaltura_get_enable_html5()) {
+//        $uiconf_id = local_kaltura_get_player_uiconf('presentation');
+//        $url = new moodle_url(local_kaltura_htm5_javascript_url($uiconf_id));
 //        $PAGE->requires->js($url, true);
 //        $PAGE->requires->js('/local/kaltura/js/frameapi.js', true);
 //    }
