@@ -34,48 +34,70 @@ class mod_kalvidpres_mod_form extends moodleform_mod {
         global $CFG, $COURSE, $PAGE;
 
         if (empty($this->current->entry_id)) {
-            $PAGE->requires->js('/local/kaltura/js/jquery.js', true);
-            $PAGE->requires->js('/local/kaltura/js/swfobject.js', true);
-            $PAGE->requires->js('/local/kaltura/js/kcwcallback.js', true);
+            $kaltura = new kaltura_connection();
+            $connection = $kaltura->get_connection(true, KALTURA_SESSION_LENGTH);
 
-            $jsmodule = array(
-                'name'     => 'local_kaltura',
-                'fullpath' => '/local/kaltura/js/kaltura.js',
-                'requires' => array('yui2-yahoo-dom-event',
-                                    'yui2-container',
-                                    'yui2-dragdrop',
-                                    'yui2-animation',
-                                    'base',
-                                    'dom',
-                                    'node',
-                                    'yui-min',
-                                    'event-focus',
-                                    'json-parse-min'
-                                    ),
-                'strings' => array(
-                        array('upload_successful', 'kalvidpres'),
-                        array('video_converting', 'kalvidpres'),
-                        array('document_converting', 'kalvidpres'),
-                        array('previewvideo', 'kalvidassign'),
-                        )
-                );
+            $login_session = '';
 
-            $courseid = get_courseid_from_context($PAGE->context);
-            $conversion_script  = "../local/kaltura/check_conversion.php?courseid={$courseid}&entry_id=";
+            if (!empty($connection)) {
+                $login_session = $connection->getKs();
+            }
 
-            $kcw                = get_kcw('pres_uploader', true);
-            $panel_markup       = $this->get_popup_markup();
+            $PAGE->requires->css('/mod/kalvidpres/styles.css');
 
-            $uploader_url       = get_host() . '/kupload/ui_conf_id/1002613';
-            $flashvars          = get_uploader_flashvars(true);
-
-
-
-            $PAGE->requires->js_init_call('M.local_kaltura.video_presentation',
-                                          array($conversion_script, $panel_markup,
-                                                $uploader_url, $flashvars,
-                                                $kcw),
-                                          true, $jsmodule);
+            $partner_id    = local_kaltura_get_partner_id();
+            $sr_unconf_id  = local_kaltura_get_player_uiconf('mymedia_screen_recorder');
+            $host = local_kaltura_get_host();
+            $url = new moodle_url("{$host}/p/{$partner_id}/sp/{$partner_id}/ksr/uiconfId/{$sr_unconf_id}");
+            
+            // Check if connection to Kaltura can be established
+            if ($connection) {
+                $PAGE->requires->js($url, true);
+                $PAGE->requires->js('/local/kaltura/js/screenrecorder.js', true);
+    
+                $PAGE->requires->js('/local/kaltura/js/jquery.js', true);
+                $PAGE->requires->js('/local/kaltura/js/swfobject.js', true);
+                $PAGE->requires->js('/local/kaltura/js/kcwcallback.js', true);
+    
+    
+                $jsmodule = array(
+                    'name'     => 'local_kaltura',
+                    'fullpath' => '/local/kaltura/js/kaltura.js',
+                    'requires' => array('yui2-yahoo-dom-event',
+                                        'yui2-container',
+                                        'yui2-dragdrop',
+                                        'yui2-animation',
+                                        'base',
+                                        'dom',
+                                        'node'
+                                        ),
+                    'strings' => array(
+                            array('upload_successful', 'kalvidpres'),
+                            array('video_converting', 'kalvidpres'),
+                            array('document_converting', 'kalvidpres'),
+                            array('previewvideo', 'kalvidpres'),
+                            array('javanotenabled', 'kalvidpres')
+                            )
+                    );
+    
+                $courseid = get_courseid_from_context($PAGE->context);
+                $conversion_script  = "../local/kaltura/check_conversion.php?courseid={$courseid}&entry_id=";
+    
+                $kcw                = local_kaltura_get_kcw('pres_uploader', true);
+                $panel_markup       = $this->get_popup_markup();
+    
+                $ksu_ui_conf        = local_kaltura_get_player_uiconf('simple_uploader');
+                $uploader_url       = local_kaltura_get_host() . '/kupload/ui_conf_id/' . $ksu_ui_conf;
+                $flashvars          = local_kaltura_get_uploader_flashvars(true);
+    
+                $progress_bar_markup = $this->draw_progress_bar();
+    
+                $PAGE->requires->js_init_call('M.local_kaltura.video_presentation',
+                                              array($conversion_script, $panel_markup,
+                                                    $uploader_url, $flashvars,
+                                                    $kcw, $login_session, $partner_id, $progress_bar_markup),
+                                              true, $jsmodule);
+            }
         }
 
         $mform =& $this->_form;
@@ -169,7 +191,7 @@ class mod_kalvidpres_mod_form extends moodleform_mod {
 
         if (empty($this->current->entry_id)) {
 
-            if (login(true, '')) {
+            if (local_kaltura_login(true, '')) {
 
                 $mform->addElement('header', 'video', get_string('video_hdr', 'kalvidpres'));
 
@@ -189,25 +211,71 @@ class mod_kalvidpres_mod_form extends moodleform_mod {
     }
 
     private function add_video_definition($mform) {
+        global $COURSE;
 
         $thumbnail = $this->get_thumbnail_markup();
 
         $mform->addElement('static', 'add_video_thumb', '&nbsp;', $thumbnail);
 
+        $radioarray = array();
+        $attributes = array();
+        $enable_ksr = get_config(KALTURA_PLUGIN_NAME, 'enable_screen_recorder');
+        $context    = null;
+
+        // Check of KSR is enabled via config or capability
+        if (!empty($this->_cm)) {
+            $context       = get_context_instance(CONTEXT_MODULE, $this->_cm->id);
+        } else {
+
+            $context       = get_context_instance(CONTEXT_COURSE, $COURSE->id);
+        }
+
+        if ($enable_ksr && has_capability('mod/kalvidpres:screenrecorder', $context)) {
+            $radioarray[] =& $mform->createElement('radio', 'media_method', '', get_string('use_screen_recorder', 'kalvidpres'), 1, $attributes);
+        }
+
+        $radioarray[] =& $mform->createElement('radio', 'media_method', '', get_string('use_kcw', 'kalvidpres'), 0, $attributes);
+        $mform->addGroup($radioarray, 'radioar', get_string('media_method', 'kalvidpres'), array('<br />'), false);
+        $mform->addHelpButton('radioar', 'media_creation', 'kalvidpres');
+
         $videogroup = array();
         $videogroup[] =& $mform->createElement('button', 'add_video', get_string('add_video', 'kalvidpres'));
         $videogroup[] =& $mform->createElement('button', 'video_preview', get_string('vide_preview', 'kalvidpres'));
+
         $mform->addGroup($videogroup, 'video_group', '&nbsp;', '&nbsp;', false);
+
+    }
+
+    private function draw_progress_bar() {
+        $attr         = array('id' => 'progress_bar');
+        $progress_bar = html_writer::tag('span', '', $attr);
+
+        $attr          = array('id' => 'slider_border');
+        $slider_border = html_writer::tag('div', $progress_bar, $attr);
+
+        $attr          = array('id' => 'loading_text');
+        $loading_text  = html_writer::tag('div', get_string('scr_loading', 'mod_kalvidpres'), $attr);
+
+        $attr   = array('id' => 'progress_bar_container',
+                        'style' => 'width:100px; padding-left:10px; padding-right:10px; visibility: hidden');
+        $output = html_writer::tag('span', $slider_border . $loading_text, $attr);
+
+        return $output;
 
     }
 
     private function add_document_definition($mform) {
 
+        global $CFG;
+
         $thumbnail = $this->get_document_thumbnail_markup();
-        $ksu_code = get_ksu_code();
+        $ksu_code = local_kaltura_get_ksu_code();
 
         $mform->addElement('html', $ksu_code);
         $mform->addElement('static', 'add_document_thumb', '&nbsp;', $thumbnail);
+
+        $mform->addElement('static', 'loading_gif', '', '<p id="progress_gif" style="display:none;visibility:hidden;"><img src="'.
+                           $CFG->wwwroot.'/local/kaltura/pix/loading.gif" id="progress_image"></p>');
 
         $name = get_string('add_document', 'kalvidpres');
         $status = get_string('check_status', 'kalvidpres');
