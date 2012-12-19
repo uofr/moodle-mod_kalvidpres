@@ -155,6 +155,7 @@ function kalvidpres_get_participants($kalvidpresid) {
  */
 function kalvidpres_supports($feature) {
     switch($feature) {
+        case FEATURE_MOD_ARCHETYPE:           return MOD_ARCHETYPE_RESOURCE;
         case FEATURE_GROUPS:                  return true;
         case FEATURE_GROUPINGS:               return true;
         case FEATURE_GROUPMEMBERSONLY:        return true;
@@ -166,16 +167,4 @@ function kalvidpres_supports($feature) {
 
         default: return null;
     }
-}
-
-/**
- * Makes this module appear in the resources drop down
- */
-function kalvidpres_get_types() {
-    $type = new stdClass();
-    $type->modclass = MOD_CLASS_RESOURCE;
-    $type->type     = 'kalvidpres';
-    $type->typestr  = get_string('modulename', 'kalvidpres');
-
-    return array($type);
 }
