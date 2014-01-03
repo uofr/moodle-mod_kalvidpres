@@ -53,7 +53,9 @@ class mod_kalvidpres_mod_form extends moodleform_mod {
             // Check if connection to Kaltura can be established
             if ($connection) {
                 $PAGE->requires->js($url, true);
-                $PAGE->requires->js('/local/kaltura/js/screenrecorder.js', true);
+                if (get_config(KALTURA_PLUGIN_NAME, 'enable_screen_recorder')) {
+                    $PAGE->requires->js('/local/kaltura/js/screenrecorder.js', true);
+                }
     
                 $PAGE->requires->js('/local/kaltura/js/jquery.js', true);
                 $PAGE->requires->js('/local/kaltura/js/swfobject.js', true);
